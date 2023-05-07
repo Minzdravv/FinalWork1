@@ -1,49 +1,69 @@
 import librosa
-import librosa
-import IPython
 import numpy as np
-import pandas as pd
-import scipy
-import matplotlib.pyplot as plt
-import seaborn as sns
+from scipy.spatial.distance import cdist
+from sklearn.cluster import KMeans
+from pydub import AudioSegment
+import os
+
+def preprocess_audio(audio_file, sr=16000):
+    # Загрузка аудиофайла и преобразование его в моно-звук
+    audio, _ = librosa.load(audio_file, sr=sr)
+    # Удаление тишины из аудиофайла
+    audio = librosa.effects.remix(audio, intervals=librosa.effects.split(audio))
+    return audio
 
 
-audio_data = './input/audio_1.wav'
-y, sr = librosa.load(audio_data)
-print(y, sr)
+def extract_features(y, sr=16000, n_mfcc=20, hop_length=512):
+    # Извлечение MFCC признаков из аудиофайла
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, hop_length=hop_length)
+    return mfcc.T
 
-# Spectral Centroid
-cent = librosa.feature.spectral_centroid(y=y, sr=sr)
-plt.figure(figsize=(15,5))
-plt.subplot(1, 1, 1)
-plt.semilogy(cent.T, label='Spectral centroid')
-plt.ylabel('Hz')
-plt.xticks([])
-plt.xlim([0, cent.shape[-1]])
-plt.legend()
-#
-# import IPython.display as ipd
-# plt.figure(figsize=(14, 5))
-# librosa.display.waveshow(y, sr=sr)
-# ipd.Audio(audio_data)
-#
-# # Seperation of Harmonic and Percussive Signals
-# y_harmonic, y_percussive = librosa.effects.hpss(y)
-# plt.figure(figsize=(15, 5))
-# librosa.display.waveshow(y_harmonic, sr=sr, alpha=0.25)
-# librosa.display.waveshow(y_percussive, sr=sr, color='r', alpha=0.5)
-# plt.title('Harmonic + Percussive')
-#
-# # Beat Extraction
-# tempo, beat_frames = librosa.beat.beat_track(y=y_percussive,sr=sr)
-# print('Detected Tempo: '+str(tempo)+ ' beats/min')
-# beat_times = librosa.frames_to_time(beat_frames, sr=sr)
-# beat_time_diff=np.ediff1d(beat_times)
-# beat_nums = np.arange(1, np.size(beat_times))
-#
-# fig, ax = plt.subplots()
-# fig.set_size_inches(15, 5)
-# ax.set_ylabel("Time difference (s)")
-# ax.set_xlabel("Beats")
-# g=sns.barplot(beat_nums, beat_time_diff, palette="BuGn_d",ax=ax)
-# g=g.set(xticklabels=[])
+
+def cluster_features(features, n_clusters=2):
+    # Кластеризация признаков с помощью KMeans
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans.fit(features)
+    return kmeans
+
+
+def get_speaker_timings(labels, hop_length=512, sr=16000):
+    # Определение временных интервалов для каждого спикера
+    speaker_timings = {}
+    current_speaker = labels[0]
+    start_time = 0
+
+    for i, label in enumerate(labels[1:]):
+        if label != current_speaker:
+            end_time = (i * hop_length) / sr
+            if current_speaker not in speaker_timings:
+                speaker_timings[current_speaker] = []
+            speaker_timings[current_speaker].append((start_time, end_time))
+            start_time = end_time
+            current_speaker = label
+
+    end_time = (len(labels) * hop_length) / sr
+    if current_speaker not in speaker_timings:
+        speaker_timings[current_speaker] = []
+    speaker_timings[current_speaker].append((start_time, end_time))
+
+    return speaker_timings
+
+
+def diarize_audio(audio_file, n_clusters=2):
+    # Диаризация аудиофайла
+    audio = preprocess_audio(audio_file)
+    features = extract_features(audio)
+    kmeans = cluster_features(features, n_clusters)
+    speaker_timings = get_speaker_timings(kmeans.labels_)
+
+    return speaker_timings
+
+
+audio_file = 'input/Audio.ogg'
+n_clusters = 2  # количество собеседников
+speaker_timings = diarize_audio(audio_file, n_clusters)
+
+for speaker, timings in speaker_timings.items():
+    print(f"Спикер {speaker + 1}:")
+    for start, end in timings:
+        print(f"  {start:.2f} - {end:.2f} сек")
