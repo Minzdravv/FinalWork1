@@ -58,7 +58,6 @@ def diarize_audio(audio_file, n_clusters=2):
 
     return speaker_timings
 
-
 audio_file = 'input/Audio.ogg'
 n_clusters = 2  # количество собеседников
 speaker_timings = diarize_audio(audio_file, n_clusters)
