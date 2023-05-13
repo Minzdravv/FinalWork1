@@ -62,7 +62,7 @@ audio_file = 'input/Audio.ogg'
 n_clusters = 2  # количество собеседников
 speaker_timings = diarize_audio(audio_file, n_clusters)
 
-for speaker, timings in speaker_timings.items():
-    print(f"Спикер {speaker + 1}:")
-    for start, end in timings:
-        print(f"  {start:.2f} - {end:.2f} сек")
+# for speaker, timings in speaker_timings.items():
+#     print(f"Спикер {speaker + 1}:")
+#     for start, end in timings:
+#         print(f"  {start:.2f} - {end:.2f} сек")
